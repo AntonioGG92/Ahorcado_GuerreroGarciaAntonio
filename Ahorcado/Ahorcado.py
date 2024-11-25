@@ -4,8 +4,9 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import Canvas
 from tkinter import PhotoImage
+import atexit
 
-# Conectar o crear la base de datos
+# Conectar la base de datos
 conn = sqlite3.connect('ahorcado.db')
 c = conn.cursor()
 
@@ -20,6 +21,12 @@ c.execute('''
 ''')
 conn.commit()
 
+def cerrar_conexion():
+    if conn:
+        conn.close()
+
+atexit.register(cerrar_conexion)
+
 def guardar_jugador(nombre, resultado):
     c.execute("SELECT * FROM jugadores WHERE nombre = ?", (nombre,))
     jugador = c.fetchone()
@@ -30,12 +37,16 @@ def guardar_jugador(nombre, resultado):
         elif resultado == "perdido":
             c.execute("UPDATE jugadores SET perdidas = perdidas + 1 WHERE nombre = ?", (nombre,))
     else:
-        if resultado == "ganado":
-            c.execute("INSERT INTO jugadores (nombre, ganadas, perdidas) VALUES (?, 1, 0)", (nombre,))
-        elif resultado == "perdido":
-            c.execute("INSERT INTO jugadores (nombre, ganadas, perdidas) VALUES (?, 0, 1)", (nombre,))
+        try:
+            if resultado == "ganado":
+                c.execute("INSERT INTO jugadores (nombre, ganadas, perdidas) VALUES (?, 1, 0)", (nombre,))
+            elif resultado == "perdido":
+                c.execute("INSERT INTO jugadores (nombre, ganadas, perdidas) VALUES (?, 0, 1)", (nombre,))
+        except sqlite3.IntegrityError as e:
+            print(f"Error al insertar el jugador: {e}")
 
     conn.commit()
+    print("Datos guardados correctamente.")
 
 def obtener_estadisticas(nombre):
     c.execute("SELECT ganadas, perdidas FROM jugadores WHERE nombre = ?", (nombre,))
@@ -44,9 +55,9 @@ def obtener_estadisticas(nombre):
 
 def elegir_palabra(tematica):
     tematicas = {
-        "frutas": ["manzana", "platano", "cereza", "fresa", "naranja"],
+        "frutas": ["manzana", "platano", "cereza", "fresa", "naranja", "mango", "melon", "sandia"],
         "conceptos informáticos": ["variable", "función", "algoritmo", "compilador", "bucle"],
-        "nombres de personas": ["andrea", "carlos", "maria", "juan", "laura"]
+        "nombres de personas": ["andrea", "carlos", "maria", "juan", "laura", "antonio", "paco", "ana"]
     }
     return random.choice(tematicas[tematica])
 
@@ -54,15 +65,13 @@ class AhorcadoApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Juego del Ahorcado")
-        self.root.geometry("700x950")
+        self.root.geometry("650x950")
         
         # Añadir imagen de fondo
         self.background_image = PhotoImage(file="fondo.png")
         self.background_label = tk.Label(self.root, image=self.background_image)
         self.background_label.place(relwidth=1, relheight=1)
         self.background_label.lower()
-
-        
         
         self.jugador = ""
         self.palabra = ""
@@ -86,10 +95,13 @@ class AhorcadoApp:
         tk.Button(self.root, text="Comenzar", font=("Helvetica", 16), command=self.iniciar_juego, bg="#4CAF50", fg="white", width=20).pack(pady=20)
 
     def iniciar_juego(self):
-        self.jugador = self.nombre_entry.get().lower()
+        self.jugador = self.nombre_entry.get().strip().lower()
         if not self.jugador:
             messagebox.showwarning("Advertencia", "Por favor, ingresa tu nombre.")
             return
+        
+        ganadas, perdidas = obtener_estadisticas(self.jugador)
+        messagebox.showinfo("Estadísticas", f"{self.jugador.capitalize()}, has ganado {ganadas} partidas y perdido {perdidas}.")
         
         self.seleccionar_tematica()
 
@@ -153,7 +165,7 @@ class AhorcadoApp:
             # Cabeza
             self.canvas.create_oval(230, 70, 270, 110, width=5)
         if self.intentos_restantes <= 1:
-            # Cuerpo
+            # Cuerpo05070
             self.canvas.create_line(250, 110, 250, 250, width=5)
         if self.intentos_restantes == 0:
             # Brazos y piernas
